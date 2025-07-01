@@ -15,6 +15,14 @@ import AccountSettings from "./pages/AccountSettings";
 import Pricing from "./pages/Pricing";
 import Onboarding from "./pages/Onboarding";
 import AdminDashboard from "./pages/admin/Dashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminPlans from "./pages/admin/AdminPlans";
+import AdminProfile from "./pages/admin/AdminProfile";
+import Analytics from "./pages/admin/Analytics";
+import ApiKeys from "./pages/admin/ApiKeys";
+import SystemManagement from "./pages/admin/SystemManagement";
+import PaymentManagement from "./pages/admin/PaymentManagement";
+import AdminSettings from "./pages/admin/AdminSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,7 +44,18 @@ const App = () => (
           <Route path="/account" element={<AccountSettings />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          
+          {/* Admin Routes */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/plans" element={<AdminPlans />} />
+          <Route path="/admin/profile" element={<AdminProfile />} />
+          <Route path="/admin/analytics" element={<Analytics />} />
+          <Route path="/admin/api-keys" element={<ApiKeys />} />
+          <Route path="/admin/system" element={<SystemManagement />} />
+          <Route path="/admin/payments" element={<PaymentManagement />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
