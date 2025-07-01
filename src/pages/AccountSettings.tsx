@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
@@ -242,7 +241,7 @@ const AccountSettings = () => {
                 <Card>
                   <CardHeader>
                     <CardTitle>Privacy & Security</CardTitle>
-                  </CardContent>
+                  </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
