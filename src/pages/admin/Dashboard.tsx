@@ -1,7 +1,8 @@
-
 import React, { useState } from 'react';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
+import AdminSidebar from '../../components/admin/AdminSidebar';
+import StatsCard from '../../components/admin/StatsCard';
 import { 
   Users, 
   PlayCircle, 
@@ -9,25 +10,30 @@ import {
   DollarSign, 
   FileVideo, 
   Shield,
-  Settings,
-  BarChart3,
   UserCheck,
   AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { useQuery } from '@tanstack/react-query';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
 
-  const stats = [
-    { title: 'Total Users', value: '12,543', icon: Users, change: '+12%' },
-    { title: 'Active Subscriptions', value: '8,932', icon: UserCheck, change: '+8%' },
-    { title: 'Monthly Revenue', value: '$89,432', icon: DollarSign, change: '+15%' },
-    { title: 'Content Views', value: '234,567', icon: PlayCircle, change: '+22%' },
-    { title: 'Total Content', value: '1,543', icon: FileVideo, change: '+5%' },
-    { title: 'Server Uptime', value: '99.9%', icon: Shield, change: '0%' }
-  ];
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: async () => {
+      // Mock data - replace with actual Supabase edge function call
+      return {
+        totalUsers: 12543,
+        activeSubscriptions: 8932,
+        monthlyRevenue: 89432,
+        contentViews: 234567,
+        totalContent: 1543,
+        serverUptime: 99.9
+      };
+    }
+  });
 
   const recentUsers = [
     { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Premium', status: 'Active', joined: '2024-01-15' },
@@ -38,8 +44,9 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      <AdminSidebar />
       
-      <main className="pt-20">
+      <main className="ml-64 pt-20">
         <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
           {/* Header */}
           <div className="mb-8">
@@ -48,25 +55,54 @@ const AdminDashboard = () => {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <Card key={index}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600">{stat.title}</CardTitle>
-                    <Icon className="h-4 w-4 text-gray-400" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-                    <p className={`text-xs ${stat.change.startsWith('+') ? 'text-green-600' : 'text-gray-600'}`}>
-                      {stat.change} from last month
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          {isLoading ? (
+            <div className="text-center py-8">Loading stats...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              <StatsCard 
+                title="Total Users" 
+                value={stats?.totalUsers.toLocaleString() || '0'} 
+                icon={Users} 
+                change="+12%" 
+                trend="up" 
+              />
+              <StatsCard 
+                title="Active Subscriptions" 
+                value={stats?.activeSubscriptions.toLocaleString() || '0'} 
+                icon={UserCheck} 
+                change="+8%" 
+                trend="up" 
+              />
+              <StatsCard 
+                title="Monthly Revenue" 
+                value={`$${stats?.monthlyRevenue.toLocaleString() || '0'}`} 
+                icon={DollarSign} 
+                change="+15%" 
+                trend="up" 
+              />
+              <StatsCard 
+                title="Content Views" 
+                value={stats?.contentViews.toLocaleString() || '0'} 
+                icon={PlayCircle} 
+                change="+22%" 
+                trend="up" 
+              />
+              <StatsCard 
+                title="Total Content" 
+                value={stats?.totalContent.toLocaleString() || '0'} 
+                icon={FileVideo} 
+                change="+5%" 
+                trend="up" 
+              />
+              <StatsCard 
+                title="Server Uptime" 
+                value={`${stats?.serverUptime || 0}%`} 
+                icon={Shield} 
+                change="0%" 
+                trend="neutral" 
+              />
+            </div>
+          )}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
