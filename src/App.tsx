@@ -11,6 +11,10 @@ import MyList from "./pages/MyList";
 import Player from "./pages/Player";
 import Search from "./pages/Search";
 import Profile from "./pages/Profile";
+import AccountSettings from "./pages/AccountSettings";
+import Pricing from "./pages/Pricing";
+import Onboarding from "./pages/Onboarding";
+import AdminDashboard from "./pages/admin/Dashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +33,10 @@ const App = () => (
           <Route path="/player/:id" element={<Player />} />
           <Route path="/search" element={<Search />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/account" element={<AccountSettings />} />
+          <Route path="/pricing" element={<Pricing />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
