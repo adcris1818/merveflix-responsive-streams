@@ -61,7 +61,6 @@ const Movies = () => {
           <h1 className="text-4xl font-bold mb-8">Movies</h1>
           
           <FilterTabs
-            filters={filters}
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
           />

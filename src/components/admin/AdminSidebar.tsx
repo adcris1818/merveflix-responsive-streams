@@ -14,7 +14,9 @@ import {
   Upload,
   FileVideo,
   Ticket,
-  Banknote
+  Banknote,
+  Shield,
+  Activity
 } from 'lucide-react';
 
 const AdminSidebar = () => {
@@ -24,6 +26,7 @@ const AdminSidebar = () => {
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
     { icon: FileVideo, label: 'Content Manager', path: '/admin/content' },
     { icon: Upload, label: 'Upload Content', path: '/admin/content/upload' },
+    { icon: Shield, label: 'Content Moderation', path: '/admin/moderation' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: CreditCard, label: 'Plans', path: '/admin/plans' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
@@ -31,6 +34,7 @@ const AdminSidebar = () => {
     { icon: Banknote, label: 'Payment Gateways', path: '/admin/payment-gateways' },
     { icon: Ticket, label: 'Guest Passes', path: '/admin/guest-passes' },
     { icon: Key, label: 'API Keys', path: '/admin/api-keys' },
+    { icon: Activity, label: 'API Rate Limiting', path: '/admin/api-management' },
     { icon: Server, label: 'System', path: '/admin/system' },
     { icon: User, label: 'Profile', path: '/admin/profile' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' }
