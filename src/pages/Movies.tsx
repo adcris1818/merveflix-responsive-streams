@@ -4,67 +4,71 @@ import { Header } from '../components/Header';
 import { ContentGrid } from '../components/ContentGrid';
 import { FilterTabs } from '../components/FilterTabs';
 import { Footer } from '../components/Footer';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+
+type Content = Database['public']['Tables']['content']['Row'];
 
 const Movies = () => {
-  const [activeFilter, setActiveFilter] = useState('all');
-  
-  const filterTabs = [
-    { id: 'all', label: 'All Movies', count: 1250 },
-    { id: 'action', label: 'Action', count: 245 },
-    { id: 'comedy', label: 'Comedy', count: 189 },
-    { id: 'drama', label: 'Drama', count: 312 },
-    { id: 'thriller', label: 'Thriller', count: 156 },
-    { id: 'horror', label: 'Horror', count: 98 },
-    { id: 'romance', label: 'Romance', count: 134 },
-    { id: 'sci-fi', label: 'Sci-Fi', count: 87 }
-  ];
+  const [activeFilter, setActiveFilter] = useState('All Genres');
 
-  // Mock movie data
-  const movies = Array.from({ length: 50 }, (_, i) => ({
-    id: i + 1,
-    title: `Movie Title ${i + 1}`,
-    thumbnail: "/placeholder.svg",
-    genre: ['Action', 'Comedy', 'Drama', 'Thriller', 'Horror', 'Romance', 'Sci-Fi'][Math.floor(Math.random() * 7)],
-    year: 2020 + Math.floor(Math.random() * 4),
-    rating: ['PG', 'PG-13', 'R', 'NC-17'][Math.floor(Math.random() * 4)],
-    duration: `${90 + Math.floor(Math.random() * 60)} min`,
-    description: `An engaging ${['action-packed', 'hilarious', 'dramatic', 'thrilling', 'terrifying', 'romantic', 'futuristic'][Math.floor(Math.random() * 7)]} movie that will keep you entertained from start to finish.`
+  const { data: content = [], isLoading } = useQuery({
+    queryKey: ['movies'],
+    queryFn: async (): Promise<Content[]> => {
+      const { data, error } = await supabase
+        .from('content')
+        .select('*')
+        .eq('type', 'movie')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const filters = ['All Genres', 'Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Romance', 'Thriller'];
+
+  const filteredContent = activeFilter === 'All Genres' 
+    ? content 
+    : content.filter(item => item.genre?.includes(activeFilter));
+
+  const contentItems = filteredContent.map(item => ({
+    id: item.id,
+    title: item.title,
+    thumbnail: item.thumbnail_url || item.poster_url || '/placeholder.svg',
+    genre: item.genre?.[0] || 'Movie',
+    year: item.release_date ? new Date(item.release_date).getFullYear() : new Date().getFullYear(),
+    rating: item.age_rating || 'PG-13',
+    duration: `${item.duration || 120} min`,
+    description: item.description || 'No description available.'
   }));
 
-  const filteredMovies = activeFilter === 'all' 
-    ? movies 
-    : movies.filter(movie => movie.genre.toLowerCase() === activeFilter);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
       <Header />
-      
       <main className="pt-20">
         <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
-          {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">Movies</h1>
-            <p className="text-gray-400 text-lg max-w-2xl">
-              Discover thousands of movies from every genre. From blockbuster hits to indie gems, 
-              we have something for every movie lover.
-            </p>
-          </div>
-
-          {/* Filter Tabs */}
+          <h1 className="text-4xl font-bold mb-8">Movies</h1>
+          
           <FilterTabs
-            tabs={filterTabs}
-            activeTab={activeFilter}
-            onTabChange={setActiveFilter}
+            filters={filters}
+            activeFilter={activeFilter}
+            onFilterChange={setActiveFilter}
           />
-
-          {/* Movies Grid */}
-          <ContentGrid
-            items={filteredMovies}
-            title={`${filteredMovies.length} Movies`}
-          />
+          
+          <ContentGrid items={contentItems} />
         </div>
       </main>
-      
       <Footer />
     </div>
   );

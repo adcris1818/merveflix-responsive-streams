@@ -1,8 +1,5 @@
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
 import AdminSidebar from '../../components/admin/AdminSidebar';
@@ -11,145 +8,150 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../../components/ui/form';
+import { Label } from '../../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Badge } from '../../components/ui/badge';
-import { Upload, Link, Code, Video, Image, Plus, X } from 'lucide-react';
-import { useToast } from '../../hooks/use-toast';
+import { Upload, Link, Code, Save, X } from 'lucide-react';
+import { useContentManagement } from '../../hooks/useContentManagement';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-const contentSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  description: z.string().optional(),
-  type: z.enum(['movie', 'tv_show', 'documentary', 'series']),
-  genre: z.array(z.string()).min(1, 'At least one genre is required'),
-  release_date: z.string().optional(),
-  duration: z.number().min(1).optional(),
-  age_rating: z.string().optional(),
-  language: z.string().default('en'),
-  video_source: z.enum(['upload', 'embed', 'url']),
-  video_url: z.string().optional(),
-  embed_code: z.string().optional(),
-  poster_file: z.any().optional(),
-  video_file: z.any().optional(),
-});
-
-type ContentForm = z.infer<typeof contentSchema>;
-
 const ContentUpload = () => {
-  const { toast } = useToast();
-  const [uploading, setUploading] = useState(false);
-  const [genres, setGenres] = useState<string[]>([]);
-  const [newGenre, setNewGenre] = useState('');
-
-  const form = useForm<ContentForm>({
-    resolver: zodResolver(contentSchema),
-    defaultValues: {
-      type: 'movie',
-      genre: [],
-      language: 'en',
-      video_source: 'upload',
-    },
+  const [uploadMethod, setUploadMethod] = useState('file');
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'movie' as 'movie' | 'tv_show' | 'documentary',
+    genre: [] as string[],
+    age_rating: '',
+    language: 'en',
+    release_date: '',
+    duration: '',
+    season_count: '',
+    episode_count: '',
+    external_url: '',
+    embed_code: '',
+    video_source: 'local' as 'local' | 'external' | 'embed',
+    is_featured: false,
+    content_tags: [] as string[]
   });
 
-  const watchVideoSource = form.watch('video_source');
+  const { createContent } = useContentManagement();
 
-  const addGenre = () => {
-    if (newGenre.trim() && !genres.includes(newGenre.trim())) {
-      const updatedGenres = [...genres, newGenre.trim()];
-      setGenres(updatedGenres);
-      form.setValue('genre', updatedGenres);
-      setNewGenre('');
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleGenreChange = (genre: string) => {
+    setFormData(prev => ({
+      ...prev,
+      genre: prev.genre.includes(genre) 
+        ? prev.genre.filter(g => g !== genre)
+        : [...prev.genre, genre]
+    }));
+  };
+
+  const handleFileUpload = async (file: File, folder: string): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${folder}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('content-assets')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL using the correct method
+      const { data: { publicUrl } } = supabase.storage
+        .from('content-assets')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload file');
+      return null;
     }
   };
 
-  const removeGenre = (genreToRemove: string) => {
-    const updatedGenres = genres.filter(g => g !== genreToRemove);
-    setGenres(updatedGenres);
-    form.setValue('genre', updatedGenres);
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUploading(true);
 
-  const uploadFile = async (file: File, bucket: string, path: string) => {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(path, file, {
-        upsert: true,
-        contentType: file.type,
-      });
-
-    if (error) throw error;
-    return data;
-  };
-
-  const onSubmit = async (data: ContentForm) => {
-    setUploading(true);
     try {
-      let videoUrl = data.video_url;
-      let posterUrl = '';
+      let videoUrl = null;
+      let posterUrl = null;
 
-      // Handle video upload
-      if (data.video_source === 'upload' && data.video_file?.[0]) {
-        const videoFile = data.video_file[0];
-        const videoPath = `videos/${Date.now()}-${videoFile.name}`;
-        await uploadFile(videoFile, 'content-assets', videoPath);
-        videoUrl = `${supabase.supabaseUrl}/storage/v1/object/public/content-assets/${videoPath}`;
+      // Handle video upload based on source type
+      if (formData.video_source === 'local' && selectedFile) {
+        videoUrl = await handleFileUpload(selectedFile, 'videos');
+      } else if (formData.video_source === 'external') {
+        videoUrl = formData.external_url;
+      } else if (formData.video_source === 'embed') {
+        videoUrl = formData.embed_code;
       }
 
       // Handle poster upload
-      if (data.poster_file?.[0]) {
-        const posterFile = data.poster_file[0];
-        const posterPath = `posters/${Date.now()}-${posterFile.name}`;
-        await uploadFile(posterFile, 'content-assets', posterPath);
-        posterUrl = `${supabase.supabaseUrl}/storage/v1/object/public/content-assets/${posterPath}`;
+      if (posterFile) {
+        posterUrl = await handleFileUpload(posterFile, 'posters');
       }
 
-      // Create content record
+      // Prepare content data
       const contentData = {
-        title: data.title,
-        description: data.description,
-        type: data.type,
-        genre: data.genre,
-        release_date: data.release_date || null,
-        duration: data.duration || null,
-        age_rating: data.age_rating,
-        language: data.language,
+        title: formData.title,
+        description: formData.description,
+        type: formData.type,
+        genre: formData.genre,
+        age_rating: formData.age_rating || null,
+        language: formData.language,
+        release_date: formData.release_date || null,
+        duration: formData.duration ? parseInt(formData.duration) : null,
+        season_count: formData.season_count ? parseInt(formData.season_count) : null,
+        episode_count: formData.episode_count ? parseInt(formData.episode_count) : null,
         video_url: videoUrl,
         poster_url: posterUrl,
-        is_active: true,
+        thumbnail_url: posterUrl, // Use poster as thumbnail for now
+        is_featured: formData.is_featured,
+        content_tags: formData.content_tags,
+        is_active: true
       };
 
-      const { error } = await supabase
-        .from('content')
-        .insert([contentData]);
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Content uploaded successfully!',
+      await createContent.mutateAsync(contentData);
+      toast.success('Content uploaded successfully!');
+      
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        type: 'movie',
+        genre: [],
+        age_rating: '',
+        language: 'en',
+        release_date: '',
+        duration: '',
+        season_count: '',
+        episode_count: '',
+        external_url: '',
+        embed_code: '',
+        video_source: 'local',
+        is_featured: false,
+        content_tags: []
       });
-
-      form.reset();
-      setGenres([]);
+      setSelectedFile(null);
+      setPosterFile(null);
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to upload content. Please try again.',
-        variant: 'destructive',
-      });
+      toast.error('Failed to upload content');
     } finally {
-      setUploading(false);
+      setIsUploading(false);
     }
   };
 
-  const supportedEmbedProviders = [
-    { name: 'Bunny.net', example: '<iframe src="https://iframe.mediadelivery.net/embed/YOUR_LIBRARY_ID/YOUR_VIDEO_ID" ...></iframe>' },
-    { name: 'YouTube', example: '<iframe src="https://www.youtube.com/embed/VIDEO_ID" ...></iframe>' },
-    { name: 'Vimeo', example: '<iframe src="https://player.vimeo.com/video/VIDEO_ID" ...></iframe>' },
-    { name: 'Wistia', example: '<iframe src="https://fast.wistia.net/embed/iframe/VIDEO_ID" ...></iframe>' },
-    { name: 'JW Player', example: '<iframe src="https://content.jwplatform.com/players/VIDEO_ID" ...></iframe>' },
-  ];
+  const genres = ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Romance', 'Thriller', 'Documentary', 'Animation', 'Adventure'];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -160,323 +162,307 @@ const ContentUpload = () => {
         <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Content</h1>
-            <p className="text-gray-600">Add movies, TV shows, and documentaries to your platform</p>
+            <p className="text-gray-600">Add new movies, TV shows, and documentaries to your platform</p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Content Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter content title" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content Form */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Basic Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Basic Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="title">Title *</Label>
+                      <Input
+                        id="title"
+                        value={formData.title}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
+                        placeholder="Enter content title"
+                        required
                       />
-
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Description</FormLabel>
-                            <FormControl>
-                              <Textarea placeholder="Enter content description" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="type"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Content Type</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select type" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="movie">Movie</SelectItem>
-                                  <SelectItem value="tv_show">TV Show</SelectItem>
-                                  <SelectItem value="documentary">Documentary</SelectItem>
-                                  <SelectItem value="series">Series</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="age_rating"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Age Rating</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select rating" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  <SelectItem value="G">G</SelectItem>
-                                  <SelectItem value="PG">PG</SelectItem>
-                                  <SelectItem value="PG-13">PG-13</SelectItem>
-                                  <SelectItem value="R">R</SelectItem>
-                                  <SelectItem value="NC-17">NC-17</SelectItem>
-                                  <SelectItem value="TV-Y">TV-Y</SelectItem>
-                                  <SelectItem value="TV-Y7">TV-Y7</SelectItem>
-                                  <SelectItem value="TV-G">TV-G</SelectItem>
-                                  <SelectItem value="TV-PG">TV-PG</SelectItem>
-                                  <SelectItem value="TV-14">TV-14</SelectItem>
-                                  <SelectItem value="TV-MA">TV-MA</SelectItem>
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="release_date"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Release Date</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="duration"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Duration (minutes)</FormLabel>
-                              <FormControl>
-                                <Input 
-                                  type="number" 
-                                  placeholder="120" 
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      {/* Genre Management */}
-                      <div className="space-y-3">
-                        <FormLabel>Genres</FormLabel>
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Add genre"
-                            value={newGenre}
-                            onChange={(e) => setNewGenre(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addGenre())}
-                          />
-                          <Button type="button" onClick={addGenre} size="sm">
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {genres.map((genre) => (
-                            <Badge key={genre} variant="secondary" className="flex items-center gap-1">
-                              {genre}
-                              <X 
-                                className="h-3 w-3 cursor-pointer" 
-                                onClick={() => removeGenre(genre)}
-                              />
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Video Source Selection */}
-                      <FormField
-                        control={form.control}
-                        name="video_source"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Video Source</FormLabel>
-                            <Tabs value={field.value} onValueChange={field.onChange}>
-                              <TabsList className="grid w-full grid-cols-3">
-                                <TabsTrigger value="upload" className="flex items-center gap-2">
-                                  <Upload className="h-4 w-4" />
-                                  Upload
-                                </TabsTrigger>
-                                <TabsTrigger value="url" className="flex items-center gap-2">
-                                  <Link className="h-4 w-4" />
-                                  URL
-                                </TabsTrigger>
-                                <TabsTrigger value="embed" className="flex items-center gap-2">
-                                  <Code className="h-4 w-4" />
-                                  Embed
-                                </TabsTrigger>
-                              </TabsList>
-
-                              <TabsContent value="upload" className="space-y-4">
-                                <FormField
-                                  control={form.control}
-                                  name="video_file"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Video File</FormLabel>
-                                      <FormControl>
-                                        <Input 
-                                          type="file" 
-                                          accept="video/*"
-                                          {...form.register('video_file')}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </TabsContent>
-
-                              <TabsContent value="url" className="space-y-4">
-                                <FormField
-                                  control={form.control}
-                                  name="video_url"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Video URL</FormLabel>
-                                      <FormControl>
-                                        <Input 
-                                          placeholder="https://example.com/video.mp4" 
-                                          {...field} 
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </TabsContent>
-
-                              <TabsContent value="embed" className="space-y-4">
-                                <FormField
-                                  control={form.control}
-                                  name="embed_code"
-                                  render={({ field }) => (
-                                    <FormItem>
-                                      <FormLabel>Embed Code</FormLabel>
-                                      <FormControl>
-                                        <Textarea 
-                                          placeholder="<iframe src='...'></iframe>" 
-                                          {...field}
-                                          rows={4}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              </TabsContent>
-                            </Tabs>
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Poster Upload */}
-                      <FormField
-                        control={form.control}
-                        name="poster_file"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Poster Image</FormLabel>
-                            <FormControl>
-                              <Input 
-                                type="file" 
-                                accept="image/*"
-                                {...form.register('poster_file')}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <Button type="submit" disabled={uploading} className="w-full">
-                        {uploading ? 'Uploading...' : 'Upload Content'}
-                      </Button>
-                    </form>
-                  </Form>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Video className="h-5 w-5" />
-                    Supported Video Providers
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {supportedEmbedProviders.map((provider) => (
-                    <div key={provider.name} className="space-y-2">
-                      <h4 className="font-medium">{provider.name}</h4>
-                      <code className="block text-xs bg-gray-100 p-2 rounded text-wrap break-all">
-                        {provider.example}
-                      </code>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Image className="h-5 w-5" />
-                    Upload Guidelines
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div>
-                    <strong>Video Formats:</strong>
-                    <p className="text-gray-600">MP4, WebM, MOV (H.264/H.265 recommended)</p>
-                  </div>
-                  <div>
-                    <strong>Image Formats:</strong>
-                    <p className="text-gray-600">JPG, PNG, WebP (1920x1080 recommended)</p>
-                  </div>
-                  <div>
-                    <strong>File Sizes:</strong>
-                    <p className="text-gray-600">Videos: Max 2GB, Images: Max 10MB</p>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => handleInputChange('description', e.target.value)}
+                        placeholder="Enter content description"
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="type">Content Type *</Label>
+                        <Select 
+                          value={formData.type} 
+                          onValueChange={(value) => handleInputChange('type', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="movie">Movie</SelectItem>
+                            <SelectItem value="tv_show">TV Show</SelectItem>
+                            <SelectItem value="documentary">Documentary</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="language">Language</Label>
+                        <Select 
+                          value={formData.language} 
+                          onValueChange={(value) => handleInputChange('language', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="es">Spanish</SelectItem>
+                            <SelectItem value="fr">French</SelectItem>
+                            <SelectItem value="de">German</SelectItem>
+                            <SelectItem value="it">Italian</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Video Upload */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Video Content</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs value={formData.video_source} onValueChange={(value) => handleInputChange('video_source', value)}>
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="local">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Upload File
+                        </TabsTrigger>
+                        <TabsTrigger value="external">
+                          <Link className="h-4 w-4 mr-2" />
+                          External URL
+                        </TabsTrigger>
+                        <TabsTrigger value="embed">
+                          <Code className="h-4 w-4 mr-2" />
+                          Embed Code
+                        </TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="local" className="space-y-4">
+                        <div>
+                          <Label htmlFor="video-file">Video File</Label>
+                          <Input
+                            id="video-file"
+                            type="file"
+                            accept="video/*"
+                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                          />
+                          {selectedFile && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Selected: {selectedFile.name}
+                            </p>
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="external" className="space-y-4">
+                        <div>
+                          <Label htmlFor="external-url">Video URL</Label>
+                          <Input
+                            id="external-url"
+                            value={formData.external_url}
+                            onChange={(e) => handleInputChange('external_url', e.target.value)}
+                            placeholder="https://example.com/video.mp4 or Bunny.net URL"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Supports direct video URLs, Bunny.net, and other CDN links
+                          </p>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="embed" className="space-y-4">
+                        <div>
+                          <Label htmlFor="embed-code">Embed Code</Label>
+                          <Textarea
+                            id="embed-code"
+                            value={formData.embed_code}
+                            onChange={(e) => handleInputChange('embed_code', e.target.value)}
+                            placeholder="<iframe src='...' or embed code from YouTube, Vimeo, etc."
+                            rows={4}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Paste embed code from YouTube, Vimeo, Bunny.net, or other video platforms
+                          </p>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sidebar - Metadata */}
+              <div className="space-y-6">
+                {/* Poster Upload */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Poster Image</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div>
+                      <Label htmlFor="poster-file">Poster Image</Label>
+                      <Input
+                        id="poster-file"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setPosterFile(e.target.files?.[0] || null)}
+                      />
+                      {posterFile && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Selected: {posterFile.name}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Metadata */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Metadata</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>Genres</Label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {genres.map(genre => (
+                          <button
+                            key={genre}
+                            type="button"
+                            onClick={() => handleGenreChange(genre)}
+                            className={`px-3 py-1 text-xs rounded-full border ${
+                              formData.genre.includes(genre)
+                                ? 'bg-blue-500 text-white border-blue-500'
+                                : 'bg-white text-gray-700 border-gray-300'
+                            }`}
+                          >
+                            {genre}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="age-rating">Age Rating</Label>
+                      <Select 
+                        value={formData.age_rating} 
+                        onValueChange={(value) => handleInputChange('age_rating', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="G">G</SelectItem>
+                          <SelectItem value="PG">PG</SelectItem>
+                          <SelectItem value="PG-13">PG-13</SelectItem>
+                          <SelectItem value="R">R</SelectItem>
+                          <SelectItem value="NC-17">NC-17</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="release-date">Release Date</Label>
+                      <Input
+                        id="release-date"
+                        type="date"
+                        value={formData.release_date}
+                        onChange={(e) => handleInputChange('release_date', e.target.value)}
+                      />
+                    </div>
+
+                    {formData.type === 'movie' && (
+                      <div>
+                        <Label htmlFor="duration">Duration (minutes)</Label>
+                        <Input
+                          id="duration"
+                          type="number"
+                          value={formData.duration}
+                          onChange={(e) => handleInputChange('duration', e.target.value)}
+                          placeholder="120"
+                        />
+                      </div>
+                    )}
+
+                    {formData.type === 'tv_show' && (
+                      <>
+                        <div>
+                          <Label htmlFor="season-count">Season Count</Label>
+                          <Input
+                            id="season-count"
+                            type="number"
+                            value={formData.season_count}
+                            onChange={(e) => handleInputChange('season_count', e.target.value)}
+                            placeholder="1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="episode-count">Episode Count</Label>
+                          <Input
+                            id="episode-count"
+                            type="number"
+                            value={formData.episode_count}
+                            onChange={(e) => handleInputChange('episode_count', e.target.value)}
+                            placeholder="10"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="is-featured"
+                        checked={formData.is_featured}
+                        onChange={(e) => handleInputChange('is_featured', e.target.checked)}
+                        className="rounded"
+                      />
+                      <Label htmlFor="is-featured">Featured Content</Label>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Submit Button */}
+                <Button 
+                  type="submit" 
+                  className="w-full" 
+                  disabled={isUploading || !formData.title}
+                >
+                  {isUploading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Upload Content
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-          </div>
+          </form>
         </div>
       </main>
       

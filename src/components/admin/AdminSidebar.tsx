@@ -12,7 +12,9 @@ import {
   DollarSign,
   User,
   Upload,
-  FileVideo
+  FileVideo,
+  Ticket,
+  Banknote
 } from 'lucide-react';
 
 const AdminSidebar = () => {
@@ -26,6 +28,8 @@ const AdminSidebar = () => {
     { icon: CreditCard, label: 'Plans', path: '/admin/plans' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: DollarSign, label: 'Payments', path: '/admin/payments' },
+    { icon: Banknote, label: 'Payment Gateways', path: '/admin/payment-gateways' },
+    { icon: Ticket, label: 'Guest Passes', path: '/admin/guest-passes' },
     { icon: Key, label: 'API Keys', path: '/admin/api-keys' },
     { icon: Server, label: 'System', path: '/admin/system' },
     { icon: User, label: 'Profile', path: '/admin/profile' },
