@@ -1,96 +1,112 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, PUT, DELETE',
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
 
-    // Get user from auth header
-    const authHeader = req.headers.get('Authorization')
-    const token = authHeader?.replace('Bearer ', '')
-    
-    const { data: { user } } = await supabaseClient.auth.getUser(token)
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    const authHeader = req.headers.get('Authorization')!;
+    const token = authHeader.replace('Bearer ', '');
+    const { data: user } = await supabaseAdmin.auth.getUser(token);
+
+    if (!user.user) {
+      throw new Error('Unauthorized');
     }
 
-    // Verify admin access
-    const { data: userProfile } = await supabaseClient
+    // Check if user is admin
+    const { data: userData } = await supabaseAdmin
       .from('users')
       .select('is_admin')
-      .eq('id', user.id)
-      .single()
+      .eq('id', user.user.id)
+      .single();
 
-    if (!userProfile?.is_admin) {
-      return new Response(JSON.stringify({ error: 'Admin access required' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    if (!userData?.is_admin) {
+      throw new Error('Admin access required');
     }
 
-    if (req.method === 'GET') {
-      const url = new URL(req.url)
-      const page = parseInt(url.searchParams.get('page') || '1')
-      const limit = parseInt(url.searchParams.get('limit') || '10')
-      const search = url.searchParams.get('search') || ''
+    const { method } = req;
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('id');
 
-      let query = supabaseClient
-        .from('users')
-        .select('id, email, full_name, role, subscription_status, created_at', { count: 'exact' })
-        .range((page - 1) * limit, page * limit - 1)
+    switch (method) {
+      case 'GET':
+        const { data: users, error } = await supabaseAdmin
+          .from('users')
+          .select(`
+            *,
+            user_preferences(*),
+            payments(amount, status, created_at)
+          `)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return new Response(JSON.stringify(users), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
 
-      if (search) {
-        query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`)
-      }
+      case 'PUT':
+        if (!userId) throw new Error('User ID required for update');
+        const updateData = await req.json();
+        
+        // Update user data
+        const { data: updatedUser, error: updateError } = await supabaseAdmin
+          .from('users')
+          .update(updateData)
+          .eq('id', userId)
+          .select()
+          .single();
+        
+        if (updateError) throw updateError;
+        
+        // If updating admin status, also update role
+        if ('is_admin' in updateData) {
+          await supabaseAdmin
+            .from('users')
+            .update({ 
+              role: updateData.is_admin ? 'admin' : 'user'
+            })
+            .eq('id', userId);
+        }
+        
+        return new Response(JSON.stringify(updatedUser), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
 
-      const { data: users, count } = await query
+      case 'DELETE':
+        if (!userId) throw new Error('User ID required for deletion');
+        
+        // Delete from auth.users (cascades to public.users)
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        
+        if (deleteError) throw deleteError;
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
 
-      return new Response(JSON.stringify({ users, total: count }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+      default:
+        throw new Error('Method not allowed');
     }
-
-    if (req.method === 'PUT') {
-      const { userId, updates } = await req.json()
-      
-      const { data, error } = await supabaseClient
-        .from('users')
-        .update(updates)
-        .eq('id', userId)
-        .select()
-
-      if (error) throw error
-
-      return new Response(JSON.stringify(data), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
-    }
-
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
 
   } catch (error) {
+    console.error('Error in user management:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    })
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
-})
+});

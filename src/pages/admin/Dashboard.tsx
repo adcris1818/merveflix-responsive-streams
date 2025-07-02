@@ -1,242 +1,173 @@
-import React, { useState } from 'react';
-import { Header } from '../../components/Header';
-import { Footer } from '../../components/Footer';
-import AdminSidebar from '../../components/admin/AdminSidebar';
-import StatsCard from '../../components/admin/StatsCard';
-import { 
-  Users, 
-  PlayCircle, 
-  TrendingUp, 
-  DollarSign, 
-  FileVideo, 
-  Shield,
-  UserCheck,
-  AlertTriangle
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { useQuery } from '@tanstack/react-query';
 
-const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+import React from 'react';
+import { useAdminStats } from '@/hooks/useAdminStats';
+import StatsCard from '@/components/admin/StatsCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { Users, DollarSign, PlayCircle, AlertCircle, TrendingUp, Calendar } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['admin-stats'],
-    queryFn: async () => {
-      // Mock data - replace with actual Supabase edge function call
-      return {
-        totalUsers: 12543,
-        activeSubscriptions: 8932,
-        monthlyRevenue: 89432,
-        contentViews: 234567,
-        totalContent: 1543,
-        serverUptime: 99.9
-      };
-    }
-  });
+const Dashboard = () => {
+  const { data: stats, isLoading, error } = useAdminStats();
 
-  const recentUsers = [
-    { id: 1, name: 'John Doe', email: 'john@example.com', plan: 'Premium', status: 'Active', joined: '2024-01-15' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', plan: 'Basic', status: 'Active', joined: '2024-01-14' },
-    { id: 3, name: 'Mike Johnson', email: 'mike@example.com', plan: 'Premium', status: 'Cancelled', joined: '2024-01-13' }
-  ];
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-80" />
+          <Skeleton className="h-80" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-red-600">
+          <AlertCircle className="mx-auto h-12 w-12 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Error Loading Dashboard</h2>
+          <p>Failed to load dashboard statistics. Please try again later.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <AdminSidebar />
-      
-      <main className="ml-64 pt-20">
-        <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-            <p className="text-gray-600">Welcome back! Here's what's happening with Merflix today.</p>
-          </div>
-
-          {/* Stats Grid */}
-          {isLoading ? (
-            <div className="text-center py-8">Loading stats...</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-              <StatsCard 
-                title="Total Users" 
-                value={stats?.totalUsers.toLocaleString() || '0'} 
-                icon={Users} 
-                change="+12%" 
-                trend="up" 
-              />
-              <StatsCard 
-                title="Active Subscriptions" 
-                value={stats?.activeSubscriptions.toLocaleString() || '0'} 
-                icon={UserCheck} 
-                change="+8%" 
-                trend="up" 
-              />
-              <StatsCard 
-                title="Monthly Revenue" 
-                value={`$${stats?.monthlyRevenue.toLocaleString() || '0'}`} 
-                icon={DollarSign} 
-                change="+15%" 
-                trend="up" 
-              />
-              <StatsCard 
-                title="Content Views" 
-                value={stats?.contentViews.toLocaleString() || '0'} 
-                icon={PlayCircle} 
-                change="+22%" 
-                trend="up" 
-              />
-              <StatsCard 
-                title="Total Content" 
-                value={stats?.totalContent.toLocaleString() || '0'} 
-                icon={FileVideo} 
-                change="+5%" 
-                trend="up" 
-              />
-              <StatsCard 
-                title="Server Uptime" 
-                value={`${stats?.serverUptime || 0}%`} 
-                icon={Shield} 
-                change="0%" 
-                trend="neutral" 
-              />
-            </div>
-          )}
-
-          {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="users">Users</TabsTrigger>
-              <TabsTrigger value="content">Content</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent User Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {recentUsers.map((user) => (
-                        <div key={user.id} className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-gray-900">{user.name}</p>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm font-medium">{user.plan}</p>
-                            <p className={`text-xs ${user.status === 'Active' ? 'text-green-600' : 'text-red-600'}`}>
-                              {user.status}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>System Alerts</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-lg">
-                        <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                        <div>
-                          <p className="text-sm font-medium text-yellow-800">High Server Load</p>
-                          <p className="text-xs text-yellow-600">Server load at 85% capacity</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
-                        <Shield className="h-5 w-5 text-green-600" />
-                        <div>
-                          <p className="text-sm font-medium text-green-800">Security Update Complete</p>
-                          <p className="text-xs text-green-600">All systems updated successfully</p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="users">
-              <Card>
-                <CardHeader>
-                  <CardTitle>User Management</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2">Name</th>
-                          <th className="text-left py-2">Email</th>
-                          <th className="text-left py-2">Plan</th>
-                          <th className="text-left py-2">Status</th>
-                          <th className="text-left py-2">Joined</th>
-                          <th className="text-left py-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {recentUsers.map((user) => (
-                          <tr key={user.id} className="border-b">
-                            <td className="py-2">{user.name}</td>
-                            <td className="py-2">{user.email}</td>
-                            <td className="py-2">{user.plan}</td>
-                            <td className="py-2">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                user.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {user.status}
-                              </span>
-                            </td>
-                            <td className="py-2">{user.joined}</td>
-                            <td className="py-2">
-                              <button className="text-blue-600 hover:text-blue-800 text-sm">Edit</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="content">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Content Management</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Content management features coming soon...</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="analytics">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Analytics Overview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">Detailed analytics coming soon...</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <div className="flex items-center text-sm text-gray-500">
+          <Calendar className="h-4 w-4 mr-2" />
+          Last updated: {new Date().toLocaleString()}
         </div>
-      </main>
-      
-      <Footer />
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatsCard
+          title="Total Users"
+          value={stats?.totalUsers || 0}
+          icon={Users}
+          change={`${stats?.conversionRate || 0}% active`}
+          trend="up"
+        />
+        <StatsCard
+          title="Active Subscriptions"
+          value={stats?.activeSubscriptions || 0}
+          icon={TrendingUp}
+          change="+12% from last month"
+          trend="up"
+        />
+        <StatsCard
+          title="Total Content"
+          value={stats?.totalContent || 0}
+          icon={PlayCircle}
+          change="+3 this week"
+          trend="up"
+        />
+        <StatsCard
+          title="Monthly Revenue"
+          value={`$${stats?.monthlyRevenue?.toLocaleString() || 0}`}
+          icon={DollarSign}
+          change="+18% from last month"
+          trend="up"
+        />
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>User Activity (Last 7 Days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={stats?.chartData || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="events" 
+                  stroke="#ef4444" 
+                  strokeWidth={2}
+                  dot={{ fill: '#ef4444' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Daily Revenue (Last 7 Days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats?.chartData || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip formatter={(value) => [`$${value}`, 'Revenue']} />
+                <Bar 
+                  dataKey="revenue" 
+                  fill="#ef4444"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Support Tickets</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-orange-600">
+              {stats?.openTickets || 0}
+            </div>
+            <p className="text-sm text-gray-600 mt-2">Open tickets requiring attention</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Total Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-600">
+              ${stats?.totalRevenue?.toLocaleString() || 0}
+            </div>
+            <p className="text-sm text-gray-600 mt-2">All-time revenue</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Conversion Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-blue-600">
+              {stats?.conversionRate || 0}%
+            </div>
+            <p className="text-sm text-gray-600 mt-2">Users to subscribers</p>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
 
-export default AdminDashboard;
+export default Dashboard;
