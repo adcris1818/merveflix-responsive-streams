@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 
 interface ContentItem {
-  id: number;
+  id: string;
   title: string;
   thumbnail: string;
   genre: string;
