@@ -3,58 +3,34 @@ import React, { useState } from 'react';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
 import AdminSidebar from '../../components/admin/AdminSidebar';
-import { FileVideo, Plus, Edit, Trash2, Search, Filter, Eye } from 'lucide-react';
+import { FileVideo, Plus, Edit, Trash2, Search, Filter, Eye, Upload } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { useQuery } from '@tanstack/react-query';
+import { useContentManagement } from '../../hooks/useContentManagement';
+import { Link } from 'react-router-dom';
 
 const ContentManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: contentData, isLoading } = useQuery({
-    queryKey: ['admin-content', currentPage, searchTerm, typeFilter],
-    queryFn: async () => {
-      // Mock data - replace with actual API call
-      return {
-        content: [
-          {
-            id: '1',
-            title: 'The Matrix',
-            type: 'movie',
-            genre: ['Action', 'Sci-Fi'],
-            duration: 136,
-            rating: 8.7,
-            is_active: true,
-            is_featured: true,
-            created_at: '2024-01-15T10:00:00Z',
-            views: 12543
-          },
-          {
-            id: '2',
-            title: 'Breaking Bad',
-            type: 'tv_show',
-            genre: ['Crime', 'Drama'],
-            duration: 47,
-            rating: 9.5,
-            is_active: true,
-            is_featured: true,
-            created_at: '2024-01-10T09:00:00Z',
-            views: 8921
-          }
-        ],
-        total: 2
-      };
-    }
-  });
+  const { content, isLoading, deleteContent } = useContentManagement();
 
   const handleContentAction = (contentId: string, action: string) => {
     console.log(`Performing ${action} on content ${contentId}`);
+    if (action === 'delete') {
+      deleteContent.mutate(contentId);
+    }
   };
+
+  const filteredContent = content?.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = typeFilter === 'all' || item.type === typeFilter;
+    return matchesSearch && matchesType;
+  }) || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -68,10 +44,14 @@ const ContentManager = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Content Management</h1>
               <p className="text-gray-600">Manage movies, TV shows, and documentaries</p>
             </div>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Content
-            </Button>
+            <div className="flex gap-3">
+              <Link to="/admin/content/upload">
+                <Button>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Content
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -82,8 +62,8 @@ const ContentManager = () => {
                 <FileVideo className="h-4 w-4 text-gray-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">1,543</div>
-                <p className="text-xs text-green-600">+12 this week</p>
+                <div className="text-2xl font-bold">{content?.length || 0}</div>
+                <p className="text-xs text-green-600">Active content</p>
               </CardContent>
             </Card>
             <Card>
@@ -92,8 +72,10 @@ const ContentManager = () => {
                 <FileVideo className="h-4 w-4 text-gray-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">892</div>
-                <p className="text-xs text-green-600">+5 this week</p>
+                <div className="text-2xl font-bold">
+                  {content?.filter(c => c.type === 'movie').length || 0}
+                </div>
+                <p className="text-xs text-green-600">Movie content</p>
               </CardContent>
             </Card>
             <Card>
@@ -102,8 +84,10 @@ const ContentManager = () => {
                 <FileVideo className="h-4 w-4 text-gray-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">534</div>
-                <p className="text-xs text-green-600">+7 this week</p>
+                <div className="text-2xl font-bold">
+                  {content?.filter(c => c.type === 'tv_show').length || 0}
+                </div>
+                <p className="text-xs text-green-600">TV show content</p>
               </CardContent>
             </Card>
             <Card>
@@ -112,7 +96,9 @@ const ContentManager = () => {
                 <FileVideo className="h-4 w-4 text-gray-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">47</div>
+                <div className="text-2xl font-bold">
+                  {content?.filter(c => c.is_featured).length || 0}
+                </div>
                 <p className="text-xs text-blue-600">Currently featured</p>
               </CardContent>
             </Card>
@@ -171,7 +157,7 @@ const ContentManager = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {contentData?.content.map((content) => (
+                    {filteredContent.map((content) => (
                       <TableRow key={content.id}>
                         <TableCell>
                           <div className="font-medium">{content.title}</div>
@@ -181,12 +167,12 @@ const ContentManager = () => {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">
-                            {content.genre.slice(0, 2).join(', ')}
-                            {content.genre.length > 2 && '...'}
+                            {content.genre?.slice(0, 2).join(', ')}
+                            {content.genre && content.genre.length > 2 && '...'}
                           </div>
                         </TableCell>
-                        <TableCell>{content.rating}/10</TableCell>
-                        <TableCell>{content.views.toLocaleString()}</TableCell>
+                        <TableCell>{content.rating ? `${content.rating}/10` : 'N/A'}</TableCell>
+                        <TableCell>{content.view_count?.toLocaleString() || 0}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className={`px-2 py-1 rounded-full text-xs ${
@@ -221,6 +207,7 @@ const ContentManager = () => {
                               variant="outline"
                               size="sm"
                               onClick={() => handleContentAction(content.id, 'delete')}
+                              disabled={deleteContent.isPending}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

@@ -1,53 +1,62 @@
 
-import { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider, useAuthContext } from '@/components/auth/AuthProvider';
-import AdminSidebar from '@/components/admin/AdminSidebar';
-
-// Lazy load components
-const Index = lazy(() => import('./pages/Index'));
-const Auth = lazy(() => import('./pages/Auth'));
-const Movies = lazy(() => import('./pages/Movies'));
-const TVShows = lazy(() => import('./pages/TVShows'));
-const MyList = lazy(() => import('./pages/MyList'));
-const Search = lazy(() => import('./pages/Search'));
-const Profile = lazy(() => import('./pages/Profile'));
-const Player = lazy(() => import('./pages/Player'));
-const Pricing = lazy(() => import('./pages/Pricing'));
-const AccountSettings = lazy(() => import('./pages/AccountSettings'));
-const Onboarding = lazy(() => import('./pages/Onboarding'));
+import { Suspense } from "react";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuthContext } from "@/components/auth/AuthProvider";
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import Movies from "./pages/Movies";
+import TVShows from "./pages/TVShows";
+import MyList from "./pages/MyList";
+import Search from "./pages/Search";
+import Profile from "./pages/Profile";
+import AccountSettings from "./pages/AccountSettings";
+import Pricing from "./pages/Pricing";
+import Player from "./pages/Player";
+import Onboarding from "./pages/Onboarding";
+import NotFound from "./pages/NotFound";
 
 // Admin pages
-const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
-const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
-const AdminPlans = lazy(() => import('./pages/admin/AdminPlans'));
-const Analytics = lazy(() => import('./pages/admin/Analytics'));
-const PaymentManagement = lazy(() => import('./pages/admin/PaymentManagement'));
-const ApiKeys = lazy(() => import('./pages/admin/ApiKeys'));
-const SystemManagement = lazy(() => import('./pages/admin/SystemManagement'));
-const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'));
-const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
-const ContentManager = lazy(() => import('./pages/admin/ContentManager'));
+import Dashboard from "./pages/admin/Dashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+import AdminPlans from "./pages/admin/AdminPlans";
+import Analytics from "./pages/admin/Analytics";
+import PaymentManagement from "./pages/admin/PaymentManagement";
+import ApiKeys from "./pages/admin/ApiKeys";
+import SystemManagement from "./pages/admin/SystemManagement";
+import AdminProfile from "./pages/admin/AdminProfile";
+import AdminSettings from "./pages/admin/AdminSettings";
+import ContentManager from "./pages/admin/ContentManager";
+import ContentUpload from "./pages/admin/ContentUpload";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-// Protected Route Component
-const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) => {
+// Protected Route component for authenticated users
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuthContext();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
+
+  return user ? <>{children}</> : <Navigate to="/auth" replace />;
+};
+
+// Admin Route component for admin users
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, profile, loading } = useAuthContext();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-red-600"></div>
       </div>
     );
   }
@@ -56,197 +65,56 @@ const ProtectedRoute = ({ children, adminOnly = false }: { children: React.React
     return <Navigate to="/auth" replace />;
   }
 
-  if (adminOnly && !profile?.is_admin) {
+  if (!profile?.is_admin) {
     return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
 };
 
-// Admin Layout Component
-const AdminLayout = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <div className="flex min-h-screen bg-gray-100">
-      <AdminSidebar />
-      <div className="flex-1 ml-64">
-        <main className="min-h-screen">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-};
-
-// Public Route Component
-const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuthContext();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white">Loading...</div>
-      </div>
-    );
-  }
-
-  if (user) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <>{children}</>;
-};
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Router>
-          <Suspense fallback={
-            <div className="min-h-screen bg-black flex items-center justify-center">
-              <div className="text-white">Loading...</div>
-            </div>
-          }>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/auth" element={
-                <PublicRoute>
-                  <Auth />
-                </PublicRoute>
-              } />
-              
-              {/* Protected User Routes */}
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } />
-              <Route path="/movies" element={
-                <ProtectedRoute>
-                  <Movies />
-                </ProtectedRoute>
-              } />
-              <Route path="/tv-shows" element={
-                <ProtectedRoute>
-                  <TVShows />
-                </ProtectedRoute>
-              } />
-              <Route path="/my-list" element={
-                <ProtectedRoute>
-                  <MyList />
-                </ProtectedRoute>
-              } />
-              <Route path="/search" element={
-                <ProtectedRoute>
-                  <Search />
-                </ProtectedRoute>
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              } />
-              <Route path="/player/:id" element={
-                <ProtectedRoute>
-                  <Player />
-                </ProtectedRoute>
-              } />
-              <Route path="/pricing" element={
-                <ProtectedRoute>
-                  <Pricing />
-                </ProtectedRoute>
-              } />
-              <Route path="/account" element={
-                <ProtectedRoute>
-                  <AccountSettings />
-                </ProtectedRoute>
-              } />
-              <Route path="/onboarding" element={
-                <ProtectedRoute>
-                  <Onboarding />
-                </ProtectedRoute>
-              } />
-
-              {/* Admin Routes */}
-              <Route path="/admin/dashboard" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <Dashboard />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/users" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <AdminUsers />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/content" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <ContentManager />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/plans" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <AdminPlans />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/analytics" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <Analytics />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/payments" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <PaymentManagement />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/api-keys" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <ApiKeys />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/system" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <SystemManagement />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/profile" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <AdminProfile />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/settings" element={
-                <ProtectedRoute adminOnly>
-                  <AdminLayout>
-                    <AdminSettings />
-                  </AdminLayout>
-                </ProtectedRoute>
-              } />
-
-              {/* Catch all route */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </Router>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <TooltipProvider>
         <Toaster />
-      </AuthProvider>
-    </QueryClientProvider>
-  );
-}
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/pricing" element={<Pricing />} />
+            
+            {/* Protected user routes */}
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/movies" element={<ProtectedRoute><Movies /></ProtectedRoute>} />
+            <Route path="/tv-shows" element={<ProtectedRoute><TVShows /></ProtectedRoute>} />
+            <Route path="/my-list" element={<ProtectedRoute><MyList /></ProtectedRoute>} />
+            <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
+            <Route path="/player/:id" element={<ProtectedRoute><Player /></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+            
+            {/* Admin routes */}
+            <Route path="/admin/dashboard" element={<AdminRoute><Dashboard /></AdminRoute>} />
+            <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+            <Route path="/admin/plans" element={<AdminRoute><AdminPlans /></AdminRoute>} />
+            <Route path="/admin/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
+            <Route path="/admin/payments" element={<AdminRoute><PaymentManagement /></AdminRoute>} />
+            <Route path="/admin/api-keys" element={<AdminRoute><ApiKeys /></AdminRoute>} />
+            <Route path="/admin/system" element={<AdminRoute><SystemManagement /></AdminRoute>} />
+            <Route path="/admin/profile" element={<AdminRoute><AdminProfile /></AdminRoute>} />
+            <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+            <Route path="/admin/content" element={<AdminRoute><ContentManager /></AdminRoute>} />
+            <Route path="/admin/content/upload" element={<AdminRoute><ContentUpload /></AdminRoute>} />
+            
+            {/* 404 route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
 
 export default App;

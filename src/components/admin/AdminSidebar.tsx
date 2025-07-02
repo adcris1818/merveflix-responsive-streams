@@ -10,7 +10,9 @@ import {
   Key, 
   Server, 
   DollarSign,
-  User
+  User,
+  Upload,
+  FileVideo
 } from 'lucide-react';
 
 const AdminSidebar = () => {
@@ -18,6 +20,8 @@ const AdminSidebar = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
+    { icon: FileVideo, label: 'Content Manager', path: '/admin/content' },
+    { icon: Upload, label: 'Upload Content', path: '/admin/content/upload' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: CreditCard, label: 'Plans', path: '/admin/plans' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
