@@ -63,6 +63,7 @@ const TVShows = () => {
           <FilterTabs
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
+            filters={filters}
           />
           
           <ContentGrid items={contentItems} />

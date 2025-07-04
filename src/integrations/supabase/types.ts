@@ -51,13 +51,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "analytics_events_content_id_fkey"
-            columns: ["content_id"]
-            isOneToOne: false
-            referencedRelation: "content"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "analytics_events_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -122,79 +115,94 @@ export type Database = {
       content: {
         Row: {
           age_rating: string | null
+          available_subtitles_languages: string[] | null
+          background_image: string | null
+          cast_list: string[] | null
           content_tags: string[] | null
           created_at: string | null
           description: string | null
           duration: number | null
+          embed_code: string | null
           episode_count: number | null
+          external_url: string | null
           genre: string[] | null
           id: string
-          imdb_rating: number | null
           is_active: boolean | null
           is_featured: boolean | null
           language: string | null
           poster_url: string | null
-          rating: number | null
           release_date: string | null
           season_count: number | null
-          subtitles: string[] | null
+          status: string | null
+          supabase_file_path: string | null
+          tags: string[] | null
           thumbnail_url: string | null
           title: string
-          trailer_url: string | null
-          type: Database["public"]["Enums"]["content_type"]
-          updated_at: string | null
+          type: string | null
+          video_source: string | null
+          video_type: string | null
           video_url: string | null
           view_count: number | null
         }
         Insert: {
           age_rating?: string | null
+          available_subtitles_languages?: string[] | null
+          background_image?: string | null
+          cast_list?: string[] | null
           content_tags?: string[] | null
           created_at?: string | null
           description?: string | null
           duration?: number | null
+          embed_code?: string | null
           episode_count?: number | null
+          external_url?: string | null
           genre?: string[] | null
           id?: string
-          imdb_rating?: number | null
           is_active?: boolean | null
           is_featured?: boolean | null
           language?: string | null
           poster_url?: string | null
-          rating?: number | null
           release_date?: string | null
           season_count?: number | null
-          subtitles?: string[] | null
+          status?: string | null
+          supabase_file_path?: string | null
+          tags?: string[] | null
           thumbnail_url?: string | null
           title: string
-          trailer_url?: string | null
-          type: Database["public"]["Enums"]["content_type"]
-          updated_at?: string | null
+          type?: string | null
+          video_source?: string | null
+          video_type?: string | null
           video_url?: string | null
           view_count?: number | null
         }
         Update: {
           age_rating?: string | null
+          available_subtitles_languages?: string[] | null
+          background_image?: string | null
+          cast_list?: string[] | null
           content_tags?: string[] | null
           created_at?: string | null
           description?: string | null
           duration?: number | null
+          embed_code?: string | null
           episode_count?: number | null
+          external_url?: string | null
           genre?: string[] | null
           id?: string
-          imdb_rating?: number | null
           is_active?: boolean | null
           is_featured?: boolean | null
           language?: string | null
           poster_url?: string | null
-          rating?: number | null
           release_date?: string | null
           season_count?: number | null
-          subtitles?: string[] | null
+          status?: string | null
+          supabase_file_path?: string | null
+          tags?: string[] | null
           thumbnail_url?: string | null
           title?: string
-          trailer_url?: string | null
-          type?: Database["public"]["Enums"]["content_type"]
-          updated_at?: string | null
+          type?: string | null
+          video_source?: string | null
+          video_type?: string | null
           video_url?: string | null
           view_count?: number | null
         }
@@ -235,13 +243,6 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "content_reviews_content_id_fkey"
-            columns: ["content_id"]
-            isOneToOne: false
-            referencedRelation: "content"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "content_reviews_user_id_fkey"
             columns: ["user_id"]
@@ -714,13 +715,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_watchlist_content_id_fkey"
-            columns: ["content_id"]
-            isOneToOne: false
-            referencedRelation: "content"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "user_watchlist_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -815,13 +809,6 @@ export type Database = {
           watched_at?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "watch_history_content_id_fkey"
-            columns: ["content_id"]
-            isOneToOne: false
-            referencedRelation: "content"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "watch_history_user_id_fkey"
             columns: ["user_id"]
