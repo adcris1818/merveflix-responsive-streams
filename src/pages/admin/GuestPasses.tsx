@@ -3,118 +3,121 @@ import React, { useState } from 'react';
 import { Header } from '../../components/Header';
 import { Footer } from '../../components/Footer';
 import AdminSidebar from '../../components/admin/AdminSidebar';
+import { Gift, Plus, Copy, Trash2, Eye, EyeOff, Calendar, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Badge } from '../../components/ui/badge';
-import { Plus, Edit, Trash2, Copy, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
-import { Label } from '../../components/ui/label';
-import { toast } from 'sonner';
+import { Badge } from '../../components/ui/badge';
+import { useToast } from '../../hooks/use-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../../integrations/supabase/client';
 
 interface GuestPass {
   id: string;
   code: string;
-  name: string;
-  type: 'single_use' | 'time_limited' | 'unlimited';
-  duration_days?: number;
-  max_uses?: number;
+  max_uses: number;
   current_uses: number;
-  expires_at?: string;
+  expires_at: string;
   is_active: boolean;
+  description: string;
   created_at: string;
 }
 
 const GuestPasses = () => {
-  const [guestPasses, setGuestPasses] = useState<GuestPass[]>([
-    {
-      id: '1',
-      code: 'WELCOME2024',
-      name: 'Welcome Pass',
-      type: 'time_limited',
-      duration_days: 7,
-      current_uses: 15,
-      expires_at: '2024-12-31T23:59:59Z',
-      is_active: true,
-      created_at: '2024-01-15T10:00:00Z'
-    },
-    {
-      id: '2',
-      code: 'TRIAL30',
-      name: '30-Day Trial',
-      type: 'time_limited',
-      duration_days: 30,
-      current_uses: 8,
-      expires_at: '2024-12-31T23:59:59Z',
-      is_active: true,
-      created_at: '2024-01-10T14:30:00Z'
-    }
-  ]);
-
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    type: 'single_use' as 'single_use' | 'time_limited' | 'unlimited',
-    duration_days: '',
-    max_uses: '',
-    expires_at: ''
+  const [newPass, setNewPass] = useState({
+    description: '',
+    max_uses: 10,
+    expires_at: '',
+    duration_days: 7
+  });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data: guestPasses = [], isLoading } = useQuery({
+    queryKey: ['guest-passes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('discount_type', 'guest_pass')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data.map(pass => ({
+        id: pass.id,
+        code: pass.code,
+        max_uses: pass.max_uses || 0,
+        current_uses: pass.current_uses || 0,
+        expires_at: pass.expires_at,
+        is_active: pass.is_active,
+        description: pass.description || '',
+        created_at: pass.created_at
+      }));
+    }
   });
 
-  const generateCode = () => {
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-    setFormData(prev => ({ ...prev, code }));
-  };
+  const createGuestPass = useMutation({
+    mutationFn: async (passData: typeof newPass) => {
+      const code = `GUEST-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + passData.duration_days);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const newPass: GuestPass = {
-      id: Date.now().toString(),
-      code: formData.code,
-      name: formData.name,
-      type: formData.type,
-      duration_days: formData.duration_days ? parseInt(formData.duration_days) : undefined,
-      max_uses: formData.max_uses ? parseInt(formData.max_uses) : undefined,
-      current_uses: 0,
-      expires_at: formData.expires_at || undefined,
-      is_active: true,
-      created_at: new Date().toISOString()
-    };
+      const { data, error } = await supabase
+        .from('coupons')
+        .insert([{
+          code,
+          discount_type: 'guest_pass',
+          discount_value: 0,
+          max_uses: passData.max_uses,
+          expires_at: expiresAt.toISOString(),
+          description: passData.description,
+          is_active: true
+        }])
+        .select()
+        .single();
 
-    setGuestPasses(prev => [...prev, newPass]);
-    setIsCreateDialogOpen(false);
-    setFormData({
-      code: '',
-      name: '',
-      type: 'single_use',
-      duration_days: '',
-      max_uses: '',
-      expires_at: ''
-    });
-    toast.success('Guest pass created successfully!');
-  };
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guest-passes'] });
+      setIsCreateDialogOpen(false);
+      setNewPass({ description: '', max_uses: 10, expires_at: '', duration_days: 7 });
+      toast({ title: 'Guest pass created successfully!' });
+    },
+    onError: (error) => {
+      toast({ title: 'Error creating guest pass', description: error.message, variant: 'destructive' });
+    }
+  });
 
-  const copyCode = (code: string) => {
+  const toggleGuestPass = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const { error } = await supabase
+        .from('coupons')
+        .update({ is_active: !isActive })
+        .eq('id', id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['guest-passes'] });
+      toast({ title: 'Guest pass updated successfully!' });
+    }
+  });
+
+  const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
-    toast.success('Code copied to clipboard!');
+    toast({ title: 'Code copied to clipboard!' });
   };
 
-  const togglePassStatus = (id: string) => {
-    setGuestPasses(prev =>
-      prev.map(pass =>
-        pass.id === id ? { ...pass, is_active: !pass.is_active } : pass
-      )
-    );
-    toast.success('Guest pass status updated!');
-  };
-
-  const deletePass = (id: string) => {
-    setGuestPasses(prev => prev.filter(pass => pass.id !== id));
-    toast.success('Guest pass deleted!');
-  };
+  const totalPasses = guestPasses.length;
+  const activePasses = guestPasses.filter(pass => pass.is_active).length;
+  const totalUses = guestPasses.reduce((sum, pass) => sum + pass.current_uses, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -126,9 +129,8 @@ const GuestPasses = () => {
           <div className="mb-8 flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Guest Passes</h1>
-              <p className="text-gray-600">Manage free access codes for your platform</p>
+              <p className="text-gray-600">Manage guest access codes and temporary passes</p>
             </div>
-            
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -136,100 +138,55 @@ const GuestPasses = () => {
                   Create Guest Pass
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
+              <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Create Guest Pass</DialogTitle>
+                  <DialogTitle>Create New Guest Pass</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-4">
                   <div>
-                    <Label htmlFor="name">Pass Name *</Label>
+                    <Label htmlFor="description">Description</Label>
                     <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Welcome Pass"
-                      required
+                      id="description"
+                      value={newPass.description}
+                      onChange={(e) => setNewPass({...newPass, description: e.target.value})}
+                      placeholder="e.g., VIP Preview Access"
                     />
                   </div>
-
                   <div>
-                    <Label htmlFor="code">Pass Code *</Label>
-                    <div className="flex space-x-2">
-                      <Input
-                        id="code"
-                        value={formData.code}
-                        onChange={(e) => setFormData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                        placeholder="WELCOME2024"
-                        required
-                      />
-                      <Button type="button" variant="outline" onClick={generateCode}>
-                        Generate
-                      </Button>
-                    </div>
+                    <Label htmlFor="max_uses">Maximum Uses</Label>
+                    <Input
+                      id="max_uses"
+                      type="number"
+                      value={newPass.max_uses}
+                      onChange={(e) => setNewPass({...newPass, max_uses: parseInt(e.target.value)})}
+                    />
                   </div>
-
                   <div>
-                    <Label htmlFor="type">Pass Type *</Label>
+                    <Label htmlFor="duration">Duration (Days)</Label>
                     <Select
-                      value={formData.type}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, type: value as any }))}
+                      value={newPass.duration_days.toString()}
+                      onValueChange={(value) => setNewPass({...newPass, duration_days: parseInt(value)})}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="single_use">Single Use</SelectItem>
-                        <SelectItem value="time_limited">Time Limited</SelectItem>
-                        <SelectItem value="unlimited">Unlimited</SelectItem>
+                        <SelectItem value="1">1 Day</SelectItem>
+                        <SelectItem value="3">3 Days</SelectItem>
+                        <SelectItem value="7">7 Days</SelectItem>
+                        <SelectItem value="14">14 Days</SelectItem>
+                        <SelectItem value="30">30 Days</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {formData.type === 'time_limited' && (
-                    <div>
-                      <Label htmlFor="duration">Duration (Days)</Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        value={formData.duration_days}
-                        onChange={(e) => setFormData(prev => ({ ...prev, duration_days: e.target.value }))}
-                        placeholder="7"
-                        min="1"
-                      />
-                    </div>
-                  )}
-
-                  {formData.type === 'single_use' && (
-                    <div>
-                      <Label htmlFor="max_uses">Maximum Uses</Label>
-                      <Input
-                        id="max_uses"
-                        type="number"
-                        value={formData.max_uses}
-                        onChange={(e) => setFormData(prev => ({ ...prev, max_uses: e.target.value }))}
-                        placeholder="100"
-                        min="1"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <Label htmlFor="expires_at">Expiry Date</Label>
-                    <Input
-                      id="expires_at"
-                      type="datetime-local"
-                      value={formData.expires_at}
-                      onChange={(e) => setFormData(prev => ({ ...prev, expires_at: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="flex justify-end space-x-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">Create Pass</Button>
-                  </div>
-                </form>
+                  <Button 
+                    onClick={() => createGuestPass.mutate(newPass)}
+                    disabled={createGuestPass.isPending}
+                    className="w-full"
+                  >
+                    {createGuestPass.isPending ? 'Creating...' : 'Create Guest Pass'}
+                  </Button>
+                </div>
               </DialogContent>
             </Dialog>
           </div>
@@ -239,132 +196,125 @@ const GuestPasses = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Passes</CardTitle>
+                <Gift className="h-4 w-4 text-gray-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{guestPasses.length}</div>
-                <p className="text-xs text-green-600">Active passes</p>
+                <div className="text-2xl font-bold">{totalPasses}</div>
+                <p className="text-xs text-gray-600">All time</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Passes</CardTitle>
+                <Eye className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {guestPasses.filter(p => p.is_active).length}
-                </div>
+                <div className="text-2xl font-bold text-green-600">{activePasses}</div>
                 <p className="text-xs text-green-600">Currently active</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Uses</CardTitle>
+                <Users className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {guestPasses.reduce((sum, pass) => sum + pass.current_uses, 0)}
-                </div>
-                <p className="text-xs text-blue-600">All time</p>
+                <div className="text-2xl font-bold text-blue-600">{totalUses}</div>
+                <p className="text-xs text-blue-600">Redemptions</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">This Month</CardTitle>
+                <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
+                <Calendar className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {guestPasses.reduce((sum, pass) => sum + pass.current_uses, 0)}
+                <div className="text-2xl font-bold text-orange-600">
+                  {guestPasses.filter(pass => {
+                    const expiryDate = new Date(pass.expires_at);
+                    const threeDaysFromNow = new Date();
+                    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+                    return expiryDate <= threeDaysFromNow && pass.is_active;
+                  }).length}
                 </div>
-                <p className="text-xs text-blue-600">Pass uses</p>
+                <p className="text-xs text-orange-600">Next 3 days</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Passes Table */}
+          {/* Guest Passes Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Guest Passes</CardTitle>
+              <CardTitle>Guest Pass Management</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Uses</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestPasses.map((pass) => (
-                    <TableRow key={pass.id}>
-                      <TableCell className="font-medium">{pass.name}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <code className="bg-gray-100 px-2 py-1 rounded text-sm">
-                            {pass.code}
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyCode(pass.code)}
-                            className="h-6 w-6 p-1"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {pass.type.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {pass.current_uses}
-                        {pass.max_uses && ` / ${pass.max_uses}`}
-                      </TableCell>
-                      <TableCell>
-                        {pass.expires_at ? (
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            <span className="text-sm">
-                              {new Date(pass.expires_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Never</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={pass.is_active ? "default" : "secondary"}>
-                          {pass.is_active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => togglePassStatus(pass.id)}
-                          >
-                            {pass.is_active ? 'Deactivate' : 'Activate'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deletePass(pass.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              {isLoading ? (
+                <div className="text-center py-8">Loading guest passes...</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Usage</TableHead>
+                      <TableHead>Expires</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {guestPasses.map((pass) => (
+                      <TableRow key={pass.id}>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                              {pass.code}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(pass.code)}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>{pass.description}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {pass.current_uses} / {pass.max_uses} uses
+                            <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                              <div 
+                                className="bg-blue-600 h-2 rounded-full" 
+                                style={{ width: `${(pass.current_uses / pass.max_uses) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(pass.expires_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={pass.is_active ? "default" : "secondary"}>
+                            {pass.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleGuestPass.mutate({ id: pass.id, isActive: pass.is_active })}
+                            >
+                              {pass.is_active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
