@@ -150,7 +150,7 @@ const ContentManager = () => {
                       <TableHead>Title</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Genre</TableHead>
-                      <TableHead>Rating</TableHead>
+                      <TableHead>Age Rating</TableHead>
                       <TableHead>Views</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
@@ -171,7 +171,7 @@ const ContentManager = () => {
                             {content.genre && content.genre.length > 2 && '...'}
                           </div>
                         </TableCell>
-                        <TableCell>{content.rating ? `${content.rating}/10` : 'N/A'}</TableCell>
+                        <TableCell>{content.age_rating || 'N/A'}</TableCell>
                         <TableCell>{content.view_count?.toLocaleString() || 0}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
