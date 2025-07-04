@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Label } from '../../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
-import { Upload, Link, Code, Save, X } from 'lucide-react';
+import { Upload, Link, Code, Save, X, Search, Star } from 'lucide-react';
 import { useContentManagement } from '../../hooks/useContentManagement';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +20,9 @@ const ContentUpload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [tmdbSearchTerm, setTmdbSearchTerm] = useState('');
+  const [tmdbResults, setTmdbResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -35,7 +38,11 @@ const ContentUpload = () => {
     embed_code: '',
     video_source: 'local' as 'local' | 'external' | 'embed',
     is_featured: false,
-    content_tags: [] as string[]
+    is_active: true,
+    status: 'pending' as 'pending' | 'approved' | 'rejected',
+    content_tags: [] as string[],
+    cast_list: [] as string[],
+    tmdb_id: ''
   });
 
   const { createContent } = useContentManagement();
@@ -53,6 +60,74 @@ const ContentUpload = () => {
     }));
   };
 
+  const handleCastChange = (cast: string) => {
+    const castArray = cast.split(',').map(c => c.trim()).filter(c => c.length > 0);
+    setFormData(prev => ({ ...prev, cast_list: castArray }));
+  };
+
+  const handleTagsChange = (tags: string) => {
+    const tagsArray = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    setFormData(prev => ({ ...prev, content_tags: tagsArray }));
+  };
+
+  // TMDb search functionality
+  const searchTMDb = async () => {
+    if (!tmdbSearchTerm.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      // In a real implementation, you would make an API call to TMDb
+      // For now, we'll simulate the search results
+      const mockResults = [
+        {
+          id: 550,
+          title: tmdbSearchTerm,
+          overview: "Sample movie description from TMDb",
+          release_date: "2023-01-01",
+          genre_ids: [18, 53],
+          poster_path: "/sample.jpg",
+          vote_average: 8.5,
+          runtime: 139
+        }
+      ];
+      
+      setTmdbResults(mockResults);
+      toast.success(`Found ${mockResults.length} results`);
+    } catch (error) {
+      console.error('TMDb search error:', error);
+      toast.error('Failed to search TMDb');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectTMDbMovie = (movie: any) => {
+    setFormData(prev => ({
+      ...prev,
+      title: movie.title,
+      description: movie.overview,
+      release_date: movie.release_date,
+      duration: movie.runtime?.toString() || '',
+      tmdb_id: movie.id.toString(),
+      // Map TMDb genres to our genre system
+      genre: movie.genre_ids?.map((id: number) => {
+        const genreMap: { [key: number]: string } = {
+          28: 'Action', 35: 'Comedy', 18: 'Drama', 27: 'Horror',
+          878: 'Sci-Fi', 10749: 'Romance', 53: 'Thriller', 99: 'Documentary'
+        };
+        return genreMap[id] || 'Drama';
+      }) || []
+    }));
+    
+    // If poster path exists, set it as external URL for poster
+    if (movie.poster_path) {
+      // In real implementation, you'd use TMDb image base URL
+      // setPosterUrl(`https://image.tmdb.org/t/p/w500${movie.poster_path}`);
+    }
+    
+    toast.success('Movie data imported from TMDb');
+  };
+
   const handleFileUpload = async (file: File, folder: string): Promise<string | null> => {
     try {
       const fileExt = file.name.split('.').pop();
@@ -65,7 +140,6 @@ const ContentUpload = () => {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL using the correct method
       const { data: { publicUrl } } = supabase.storage
         .from('content-assets')
         .getPublicUrl(filePath);
@@ -114,10 +188,12 @@ const ContentUpload = () => {
         episode_count: formData.episode_count ? parseInt(formData.episode_count) : null,
         video_url: videoUrl,
         poster_url: posterUrl,
-        thumbnail_url: posterUrl, // Use poster as thumbnail for now
+        thumbnail_url: posterUrl,
         is_featured: formData.is_featured,
+        is_active: formData.is_active,
+        status: formData.status,
         content_tags: formData.content_tags,
-        is_active: true
+        cast_list: formData.cast_list
       };
 
       await createContent.mutateAsync(contentData);
@@ -139,10 +215,15 @@ const ContentUpload = () => {
         embed_code: '',
         video_source: 'local',
         is_featured: false,
-        content_tags: []
+        is_active: true,
+        status: 'pending',
+        content_tags: [],
+        cast_list: [],
+        tmdb_id: ''
       });
       setSelectedFile(null);
       setPosterFile(null);
+      setTmdbResults([]);
     } catch (error) {
       console.error('Upload error:', error);
       toast.error('Failed to upload content');
@@ -169,6 +250,58 @@ const ContentUpload = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Content Form */}
               <div className="lg:col-span-2 space-y-6">
+                {/* TMDb Search */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Import from TMDb</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Search movies/TV shows on TMDb..."
+                        value={tmdbSearchTerm}
+                        onChange={(e) => setTmdbSearchTerm(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), searchTMDb())}
+                      />
+                      <Button 
+                        type="button" 
+                        onClick={searchTMDb}
+                        disabled={isSearching}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {tmdbResults.length > 0 && (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {tmdbResults.map((movie) => (
+                          <div
+                            key={movie.id}
+                            className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                            onClick={() => selectTMDbMovie(movie)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h4 className="font-medium">{movie.title}</h4>
+                                <p className="text-sm text-gray-600 line-clamp-2">{movie.overview}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-xs text-gray-500">{movie.release_date}</span>
+                                  {movie.vote_average && (
+                                    <div className="flex items-center text-xs text-yellow-600">
+                                      <Star className="h-3 w-3 mr-1" />
+                                      {movie.vote_average.toFixed(1)}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* Basic Information */}
                 <Card>
                   <CardHeader>
@@ -233,6 +366,26 @@ const ContentUpload = () => {
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="cast">Cast (comma separated)</Label>
+                      <Input
+                        id="cast"
+                        value={formData.cast_list.join(', ')}
+                        onChange={(e) => handleCastChange(e.target.value)}
+                        placeholder="Actor 1, Actor 2, Actor 3..."
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="tags">Tags (comma separated)</Label>
+                      <Input
+                        id="tags"
+                        value={formData.content_tags.join(', ')}
+                        onChange={(e) => handleTagsChange(e.target.value)}
+                        placeholder="action, thriller, blockbuster..."
+                      />
                     </div>
                   </CardContent>
                 </Card>
@@ -336,6 +489,53 @@ const ContentUpload = () => {
                   </CardContent>
                 </Card>
 
+                {/* Content Status */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Content Status</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="status">Approval Status</Label>
+                      <Select 
+                        value={formData.status} 
+                        onValueChange={(value) => handleInputChange('status', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending Review</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="is-active"
+                        checked={formData.is_active}
+                        onChange={(e) => handleInputChange('is_active', e.target.checked)}
+                        className="rounded"
+                      />
+                      <Label htmlFor="is-active">Active Content</Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="is-featured"
+                        checked={formData.is_featured}
+                        onChange={(e) => handleInputChange('is_featured', e.target.checked)}
+                        className="rounded"
+                      />
+                      <Label htmlFor="is-featured">Featured Content</Label>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Metadata */}
                 <Card>
                   <CardHeader>
@@ -428,17 +628,6 @@ const ContentUpload = () => {
                         </div>
                       </>
                     )}
-
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="is-featured"
-                        checked={formData.is_featured}
-                        onChange={(e) => handleInputChange('is_featured', e.target.checked)}
-                        className="rounded"
-                      />
-                      <Label htmlFor="is-featured">Featured Content</Label>
-                    </div>
                   </CardContent>
                 </Card>
 

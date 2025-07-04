@@ -23,8 +23,8 @@ const Dashboard = () => {
     queryKey: ['admin-dashboard-stats'],
     queryFn: async () => {
       const [usersResult, contentResult, paymentsResult, analyticsResult] = await Promise.all([
-        supabase.from('users').select('id, created_at, subscription_status').order('created_at', { ascending: false }),
-        supabase.from('content').select('id, view_count, created_at, type').order('created_at', { ascending: false }),
+        supabase.from('users').select('id, created_at, subscription_status, email, full_name').order('created_at', { ascending: false }),
+        supabase.from('content').select('id, title, view_count, created_at, type').order('created_at', { ascending: false }),
         supabase.from('payments').select('amount, status, created_at').eq('status', 'completed'),
         supabase.from('analytics_events').select('event_type, created_at').order('created_at', { ascending: false }).limit(1000)
       ]);
@@ -39,7 +39,7 @@ const Dashboard = () => {
       const activeSubscribers = users.filter(u => u.subscription_status === 'active').length;
       const totalContent = content.length;
       const totalViews = content.reduce((sum, c) => sum + (c.view_count || 0), 0);
-      const totalRevenue = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+      const totalRevenue = payments.reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
 
       // Recent activity data for charts
       const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -61,7 +61,7 @@ const Dashboard = () => {
       const revenueData = last7Days.map(date => {
         const amount = payments
           .filter(p => p.created_at?.startsWith(date))
-          .reduce((sum, p) => sum + parseFloat(p.amount), 0);
+          .reduce((sum, p) => sum + parseFloat(p.amount.toString()), 0);
         return { date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), revenue: amount };
       });
 
@@ -213,7 +213,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {stats?.recentUsers?.map((user, index) => (
+                  {stats?.recentUsers?.map((user) => (
                     <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium">{user.email}</p>
@@ -244,7 +244,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {stats?.popularContent?.map((content, index) => (
+                  {stats?.popularContent?.map((content) => (
                     <div key={content.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex-1">
                         <p className="font-medium line-clamp-1">{content.title}</p>

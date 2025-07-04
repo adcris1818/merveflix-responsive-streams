@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Share2, Facebook, Twitter, Link as LinkIcon, Download, Heart, Plus } from 'lucide-react';
@@ -46,6 +47,8 @@ const Player = () => {
         .select('*')
         .contains('genre', [content.genre[0]])
         .neq('id', content.id)
+        .eq('is_active', true)
+        .eq('status', 'approved')
         .limit(12);
 
       if (error) throw error;
@@ -59,8 +62,7 @@ const Player = () => {
     queryFn: async () => {
       if (content?.type !== 'tv_show') return [];
       
-      // In a real app, you'd have an episodes table
-      // For now, generating mock episodes
+      // Generate mock episodes based on episode_count
       return Array.from({ length: content.episode_count || 8 }, (_, i) => ({
         id: `${content.id}-ep-${i + 1}`,
         title: `Episode ${i + 1}`,
@@ -150,38 +152,140 @@ const Player = () => {
               </Button>
             </div>
             <div 
-              className="w-full h-screen"
+              className="w-full aspect-video"
               dangerouslySetInnerHTML={{ __html: content.video_url }}
             />
+            
+            {/* Content Info Below Player */}
+            <div className="p-6 bg-black text-white">
+              {/* Share Icons */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleLike}
+                    className={`text-white hover:bg-white/20 ${isLiked ? 'text-red-500' : ''}`}
+                  >
+                    <Heart className={`h-5 w-5 mr-2 ${isLiked ? 'fill-current' : ''}`} />
+                    Like
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleWatchlist}
+                    className="text-white hover:bg-white/20"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    {isInWatchlist ? 'Remove from' : 'Add to'} Watchlist
+                  </Button>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleShare('facebook')} 
+                    className="text-white hover:bg-white/20"
+                  >
+                    <Facebook className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleShare('twitter')} 
+                    className="text-white hover:bg-white/20"
+                  >
+                    <Twitter className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleShare('copy')} 
+                    className="text-white hover:bg-white/20"
+                  >
+                    <LinkIcon className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-white hover:bg-white/20"
+                  >
+                    <Download className="h-5 w-5" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Title and Description */}
+              <div className="mb-6">
+                <h1 className="text-3xl font-bold mb-4">{content.title}</h1>
+                <div className="flex items-center space-x-4 mb-4">
+                  {content.age_rating && (
+                    <Badge variant="outline" className="text-white border-white">
+                      {content.age_rating}
+                    </Badge>
+                  )}
+                  {content.release_date && (
+                    <span className="text-gray-300">
+                      {new Date(content.release_date).getFullYear()}
+                    </span>
+                  )}
+                  {content.duration && (
+                    <span className="text-gray-300">{content.duration} min</span>
+                  )}
+                </div>
+                <p className="text-gray-300 text-lg leading-relaxed mb-6">
+                  {content.description}
+                </p>
+              </div>
+
+              {/* Cast */}
+              {content.cast_list && content.cast_list.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold mb-3">Cast</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {content.cast_list.slice(0, 10).map((actor, index) => (
+                      <Badge key={index} variant="outline" className="text-white border-gray-600">
+                        {actor}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Genres */}
+              {content.genre && content.genre.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold mb-3">Genres</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {content.genre.map((genre, index) => (
+                      <Badge key={index} className="bg-red-600 text-white">
+                        {genre}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Subtitles */}
+              {content.available_subtitles_languages && content.available_subtitles_languages.length > 0 && (
+                <div>
+                  <h3 className="text-xl font-semibold mb-3">Available Subtitles</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {content.available_subtitles_languages.map((lang, index) => (
+                      <Badge key={index} variant="outline" className="text-white border-gray-600">
+                        {lang}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           
           {/* Right Sidebar */}
           <div className="w-80 bg-gray-900 overflow-y-auto h-screen">
             <div className="p-4">
-              <h1 className="text-xl font-bold text-white mb-2">{content.title}</h1>
-              <div className="flex items-center space-x-2 text-sm text-gray-400 mb-3">
-                {content.age_rating && <span className="bg-gray-700 px-2 py-1 rounded">{content.age_rating}</span>}
-                {content.release_date && <span>{new Date(content.release_date).getFullYear()}</span>}
-                {content.duration && <span>{content.duration} min</span>}
-              </div>
-              <p className="text-gray-300 text-sm mb-4">{content.description}</p>
-              
-              {/* Sharing Icons */}
-              <div className="flex space-x-2 mb-6">
-                <Button size="sm" variant="ghost" onClick={() => handleShare('facebook')} className="text-white hover:bg-white/20">
-                  <Facebook className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleShare('twitter')} className="text-white hover:bg-white/20">
-                  <Twitter className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleShare('copy')} className="text-white hover:bg-white/20">
-                  <LinkIcon className="h-4 w-4" />
-                </Button>
-                <Button size="sm" variant="ghost" className="text-white hover:bg-white/20">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
-
               <Tabs defaultValue="related" className="w-full">
                 <TabsList className="grid w-full grid-cols-2 bg-gray-800">
                   <TabsTrigger value="related" className="text-white data-[state=active]:bg-red-600">Related</TabsTrigger>
@@ -220,42 +324,6 @@ const Player = () => {
                   )}
                 </TabsContent>
               </Tabs>
-
-              {/* Additional Info */}
-              <div className="mt-6 space-y-4">
-                {content.cast_list && (
-                  <div>
-                    <h3 className="text-white font-semibold mb-2">Cast</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {content.cast_list.slice(0, 6).map((actor, index) => (
-                        <span key={index} className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">{actor}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {content.genre && (
-                  <div>
-                    <h3 className="text-white font-semibold mb-2">Genre</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {content.genre.map((g, index) => (
-                        <span key={index} className="bg-red-600 text-white px-2 py-1 rounded text-xs">{g}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {content.available_subtitles_languages && (
-                  <div>
-                    <h3 className="text-white font-semibold mb-2">Subtitles</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {content.available_subtitles_languages.map((lang, index) => (
-                        <span key={index} className="bg-gray-700 text-gray-300 px-2 py-1 rounded text-xs">{lang}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
