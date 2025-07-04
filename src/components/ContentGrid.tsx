@@ -3,6 +3,7 @@ import React from 'react';
 import { Play, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
+import { useNavigate } from 'react-router-dom';
 
 interface ContentItem {
   id: string;
@@ -13,14 +14,22 @@ interface ContentItem {
   rating: string;
   duration?: string;
   description?: string;
+  progress?: number;
 }
 
 interface ContentGridProps {
   items: ContentItem[];
   title?: string;
+  showProgress?: boolean;
 }
 
-export const ContentGrid: React.FC<ContentGridProps> = ({ items, title }) => {
+export const ContentGrid: React.FC<ContentGridProps> = ({ items, title, showProgress }) => {
+  const navigate = useNavigate();
+
+  const handlePlay = (id: string) => {
+    navigate(`/player/${id}`);
+  };
+
   return (
     <div>
       {title && (
@@ -40,6 +49,19 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, title }) => {
                     className="w-full h-full object-cover rounded-lg transition-transform duration-300 group-hover:scale-105"
                   />
                   
+                  {/* Progress Bar */}
+                  {showProgress && item.progress && item.progress > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 rounded-b-lg">
+                      <div className="w-full bg-gray-600 rounded-full h-1">
+                        <div 
+                          className="bg-red-600 h-1 rounded-full transition-all duration-300" 
+                          style={{ width: `${item.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-white mt-1">{item.progress}% watched</p>
+                    </div>
+                  )}
+                  
                   {/* Hover Overlay */}
                   <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg flex flex-col justify-between p-4">
                     {/* Top Actions */}
@@ -58,6 +80,7 @@ export const ContentGrid: React.FC<ContentGridProps> = ({ items, title }) => {
                       <div className="flex items-center justify-center">
                         <Button
                           size="sm"
+                          onClick={() => handlePlay(item.id)}
                           className="bg-white text-black hover:bg-gray-200 p-3 rounded-full"
                         >
                           <Play className="h-5 w-5 fill-current" />

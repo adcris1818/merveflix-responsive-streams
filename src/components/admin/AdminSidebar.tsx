@@ -10,7 +10,7 @@ import {
   Key, 
   Server, 
   Gift,
-  PaymentGateway,
+  Wallet,
   Shield,
   Activity,
   User
@@ -25,7 +25,7 @@ const AdminSidebar = () => {
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Plans', href: '/admin/plans', icon: CreditCard },
     { name: 'Guest Passes', href: '/admin/guest-passes', icon: Gift },
-    { name: 'Payment Gateways', href: '/admin/payment-gateways', icon: PaymentGateway },
+    { name: 'Payment Gateways', href: '/admin/payment-gateways', icon: Wallet },
     { name: 'Content Moderation', href: '/admin/moderation', icon: Shield },
     { name: 'API Management', href: '/admin/api-management', icon: Activity },
     { name: 'API Keys', href: '/admin/api-keys', icon: Key },
